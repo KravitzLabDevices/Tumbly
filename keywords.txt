@@ -1,0 +1,18 @@
+# Tumbly Library - Syntax coloring for Arduino IDE
+# Datatypes (KEYWORD1)
+
+# Methods and Functions (KEYWORD2)
+begin	KEYWORD2
+run	KEYWORD2
+ReadSensors	KEYWORD2
+TimedDoor	KEYWORD2
+LightControlledDoor	KEYWORD2
+LogData	KEYWORD2
+UpdateDisplay	KEYWORD2
+GoToSleep	KEYWORD2
+open_door	KEYWORD2
+close_door	KEYWORD2
+setDeviceId	KEYWORD2
+setSleepTime	KEYWORD2
+setDoorTimes	KEYWORD2
+setDoorPositions	KEYWORD2
