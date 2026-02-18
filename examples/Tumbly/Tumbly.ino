@@ -21,5 +21,9 @@ void setup() {
 }
 
 void loop() {
-  run();
+  ReadSensors();
+  TimedDoor();
+  LogData();
+  UpdateDisplay();
+  GoToSleep();
 }
