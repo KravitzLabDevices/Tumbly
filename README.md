@@ -15,40 +15,31 @@ Based on the [Tumble Feeder research](https://www.biorxiv.org/content/10.1101/20
 3. Search for "Tumbly"
 4. Click **Install**
 
-### Manual install
-
-1. Download or clone this repository
-2. Copy the `Tumbly` folder to your Arduino `libraries` folder
-3. Restart Arduino IDE
-
 ## Usage
-
+5. Click Examples > Tumbly > Tumbly.ino
+6. Flash to your Tumbly!
+      
 ```cpp
 #include <Tumbly.h>
 
 void setup() {
   // Optional: configure before begin()
-  setDeviceId(1);           // Unique device ID (default: 1)
-  setSleepTime(10);         // Seconds between readings (default: 10)
-  setDoorTimes(20, 4);      // Open at 8pm, close at 4am
-  setDoorPositions(-10, 100);
+  // setDeviceId(1);
+  // setSleepTime(10);
+  // setDoorTimes(20, 4);   // Open 8pm, close 4am
+  // setDoorPositions(-10, 100);
   
   begin();
 }
 
 void loop() {
-  run();
+  ReadSensors();
+  TimedDoor();
+  LogData();
+  UpdateDisplay();
+  GoToSleep();
 }
 ```
-
-## Getting Listed in Library Manager
-
-To have your library appear in Arduino Library Manager:
-
-1. Create a **GitHub release** with a version tag (e.g., `v1.0.0`)
-2. Submit a PR to [arduino/library-registry](https://github.com/arduino/library-registry) adding your library's repo URL and the latest release
-3. Follow the [Library Manager FAQ](https://github.com/arduino/Arduino/wiki/Library-Manager-FAQ) for details
-
 ## License
 
 GPL-3.0
