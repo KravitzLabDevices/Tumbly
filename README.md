@@ -1,10 +1,11 @@
 # Tumbly
 
-An Arduino library for a tumble feeder optimized for time-restricted feeding. Controls a servo-operated door based on RTC time or light level, with OLED display and SD card logging.
+An Arduino library for a tumble feeder optimized for time-restricted feeding. 
 
-**Hardware:** Adafruit Feather M0, OLED FeatherWing (SH1107), RTC FeatherWing, SD card, servo
+**Hardware:** Adafruit Feather M0, OLED FeatherWing (SH1107), RTC FeatherWing, SD card, Servo
+See the [Wiki](https://github.com/KravitzLabDevices/Tumbly/wiki) for build instructions.
 
-Based on the [Tumble Feeder research](https://www.biorxiv.org/content/10.1101/2024.10.01.615599v1).
+Based on the [Tumble Feeder](https://pubmed.ncbi.nlm.nih.gov/40541188/).
 
 ## Installation
 
