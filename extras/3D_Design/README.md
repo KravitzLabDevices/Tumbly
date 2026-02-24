@@ -1,14 +1,2 @@
-# Tumbly
-
-An Arduino library for a tumble feeder optimized for time-restricted feeding. 
-
-**Hardware:** Adafruit Feather M0, OLED FeatherWing (SH1107), RTC FeatherWing, SD card, Servo  
-
-See the [Wiki](https://github.com/KravitzLabDevices/Tumbly/wiki) for build instructions.
-
-Based on the [Tumble Feeder](https://pubmed.ncbi.nlm.nih.gov/40541188/).
-
-
-## License
-
-GPL-3.0
+Print the three 3D files in this folder (currently for Allentown MAX caging):  
+<img width="1210" height="510" alt="image" src="https://github.com/user-attachments/assets/b7d37562-6460-43d3-bd5b-5b4921a0106c" />
