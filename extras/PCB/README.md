@@ -14,6 +14,10 @@ Assembly instructions:
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/748b09f6-af9e-417c-b749-1a2e418fc2c8" />  
 
 3) Stack the four boards together - that's it!
+<img height="300" alt="image" src="https://github.com/user-attachments/assets/a65d82a9-d473-4d1f-8172-64dfef9dce67" />
+<img height="300" alt="image" src="https://github.com/user-attachments/assets/cb9a544d-a6d6-44c9-8acb-7e269d022253" />
+
+
 
 
 
