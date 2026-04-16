@@ -12,7 +12,7 @@
 
 SdFat SD;
 
-int CAS = 1;
+int deviceId = 1;
 int lux = 0;
 bool doorOpen = true;
 char filename[30];

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"c:\\\\Users\\\\barrett.m\\\\Documents\\\\KravitzBarrett2024\\\\Tumbly\\\\src\\\\Tumbly.h\" \"C:\\\\Users\\\\barrett.m\\\\Documents\\\\Arduino\\\\libraries\\\\Tumbly\\\\src\\\\Tumbly.h\")",
+      "Bash(cp \"c:\\\\Users\\\\barrett.m\\\\Documents\\\\KravitzBarrett2024\\\\Tumbly\\\\src\\\\Tumbly.cpp\" \"C:\\\\Users\\\\barrett.m\\\\Documents\\\\Arduino\\\\libraries\\\\Tumbly\\\\src\\\\Tumbly.cpp\")",
+      "Bash(cp \"c:\\\\Users\\\\barrett.m\\\\Documents\\\\KravitzBarrett2024\\\\Tumbly\\\\examples\\\\Tumbly\\\\Tumbly.ino\" \"C:\\\\Users\\\\barrett.m\\\\Documents\\\\Arduino\\\\libraries\\\\Tumbly\\\\examples\\\\Tumbly\\\\Tumbly.ino\")"
+    ]
+  }
+}
