@@ -43,7 +43,9 @@ public:
   void open_door();
   void close_door();
 
-  int   deviceId     = 1;
+  int   deviceId      = 1;
+  int   taskIndex     = 0;
+  bool  sdPresent     = true;
   int   lux          = 0;
   bool  doorOpen     = true;
   char  filename[30];
@@ -72,12 +74,15 @@ private:
   void readButtons();
   void beep();
   void SettingsMenu();
+  void EditTask();
   void EditDeviceId();
   void EditOpenHour();
   void EditCloseHour();
   void EditOpenPosition();
   void EditClosedPosition();
   void writeHeader();
+  void saveConfig();
+  bool loadConfig();
   void error();
 };
 
