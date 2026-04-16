@@ -228,7 +228,7 @@ void Tumbly::UpdateDisplay() {
 
 void Tumbly::writeHeader() {
   logfile = SD.open(filename, FILE_WRITE);
-  logfile.println("Datetime,Device_Number,Battery_Voltage,Light Sensor,DoorOpen");
+  logfile.println("Datetime,Device_Number,Task,Battery_Voltage,Light Sensor,DoorOpen");
   logfile.close();
 }
 
@@ -285,6 +285,8 @@ void Tumbly::LogData() {
   logfile.print(now.second());
   logfile.print(",");
   logfile.print(deviceId);
+  logfile.print(",");
+  logfile.print(task);
   logfile.print(",");
   logfile.print(measuredvbat);
   logfile.print(",");
