@@ -562,12 +562,12 @@ void Tumbly::EditOpenPosition() {
     display.display();
 
     if (_redTouch) {
-      beep(); openpos += 10; if (openpos > 180) openpos = 180;
+      beep(); openpos += 10;
       digitalWrite(11, HIGH); myservo.attach(10); myservo.write(openpos); delay(400); myservo.detach(); digitalWrite(11, LOW);
       delay(200);
     }
     if (_greenTouch) {
-      beep(); openpos -= 10; if (openpos < 0) openpos = 0;
+      beep(); openpos -= 10;
       digitalWrite(11, HIGH); myservo.attach(10); myservo.write(openpos); delay(400); myservo.detach(); digitalWrite(11, LOW);
       delay(200);
     }
@@ -614,12 +614,12 @@ void Tumbly::EditClosedPosition() {
     display.display();
 
     if (_redTouch) {
-      beep(); closedpos += 10; if (closedpos > 180) closedpos = 180;
+      beep(); closedpos += 10;
       digitalWrite(11, HIGH); myservo.attach(10); myservo.write(closedpos); delay(400); myservo.detach(); digitalWrite(11, LOW);
       delay(200);
     }
     if (_greenTouch) {
-      beep(); closedpos -= 10; if (closedpos < 0) closedpos = 0;
+      beep(); closedpos -= 10;
       digitalWrite(11, HIGH); myservo.attach(10); myservo.write(closedpos); delay(400); myservo.detach(); digitalWrite(11, LOW);
       delay(200);
     }

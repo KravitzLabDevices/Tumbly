@@ -52,7 +52,7 @@ public:
   float measuredvbat = 0;
   int   sleeptime    = 10;
   int   openpos      = 0;
-  int   closedpos    = 100;
+  int   closedpos    = 0;
   int   openHour     = 20;
   int   closeHour    = 4;
   String task;
