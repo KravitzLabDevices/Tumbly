@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Users\\\\masba\\\\OneDrive\\\\Documents\\\\GitHub\\\\Tumbly\" | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Users\\\\masba\\\\OneDrive\\\\Documents\\\\Arduino\\\\libraries\\\\Tumbly\" | ForEach-Object { $_.FullName })"
+    ]
+  }
+}
