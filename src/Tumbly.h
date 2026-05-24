@@ -23,13 +23,14 @@
 #define RED_BUTTON    BUTTON_A
 #define GREEN_BUTTON  BUTTON_B
 #define BLUE_BUTTON   BUTTON_C
+#define SERVO_FEEDBACK A0
 
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 64
 
 class Tumbly {
 public:
-  Tumbly(String& task);
+  Tumbly(String& task, bool darkMode = false);
 
   void begin();
   void run();
@@ -53,8 +54,16 @@ public:
   int   sleeptime    = 10;
   int   openpos      = 0;
   int   closedpos    = 0;
-  int   openHour     = 20;
-  int   closeHour    = 4;
+  int   openHour        = 20;
+  int   closeHour       = 4;
+  int   feedbackOpen    = -1;
+  int   feedbackClosed  = -1;
+  int   feedbackTolerance = 50;
+  int   lastFeedback    = -1;
+  bool  servoError      = false;
+  String lastError      = "OK";
+  bool   demoMode       = false;
+  bool   darkMode       = false;
   String task;
 
   RTC_DS3231      rtc;
@@ -84,6 +93,17 @@ private:
   void saveConfig();
   bool loadConfig();
   void error();
+  int  readFeedback();
+  void HourlyCheck();
+  void shakeServo();
+  void FatalServoError();
+  int  _wakeCount       = 0;
+  int  _lastPWM         = 90;
+  int  _openPWM         = 90;
+  int  _closedPWM       = 90;
+  int  _demoPhaseCount  = 0;
+  bool _demoClosedPhase = true;
+  bool _darkActive      = false;
 };
 
 #endif
