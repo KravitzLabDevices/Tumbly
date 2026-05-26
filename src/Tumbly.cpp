@@ -735,8 +735,7 @@ void Tumbly::SettingsMenu() {
     if (_redTouch) { beep(); saveConfig(); return; }
     if (_blueTouch) {
       beep(); delay(200);
-      if (demoMode) EditOpenPosition();
-      else EditTask();
+      EditTask();
       needsRedraw = true;
     }
     delay(50);
