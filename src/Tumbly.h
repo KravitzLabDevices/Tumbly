@@ -56,6 +56,8 @@ public:
   int   closedpos    = 0;
   int   openHour        = 20;
   int   closeHour       = 4;
+  int   openMinute      = 0;
+  int   closeMinute     = 0;
   int   feedbackOpen    = -1;
   int   feedbackClosed  = -1;
   int   feedbackTolerance = 50;
@@ -104,6 +106,7 @@ private:
   int  _demoPhaseCount  = 0;
   bool _demoClosedPhase = true;
   bool _darkActive      = false;
+  bool _fatalActive     = false;
 };
 
 #endif

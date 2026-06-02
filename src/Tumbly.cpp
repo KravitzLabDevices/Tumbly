@@ -178,10 +178,10 @@ void Tumbly::begin() {
 
   int n = 0;
   DateTime now = rtc.now();
-  snprintf(filename, sizeof(filename), "FEED%03d_%02d%02d%02d_%02d.csv", deviceId, now.month(), now.day(), now.year() - 2000, n);
+  snprintf(filename, sizeof(filename), "TUMBLY%03d_%02d%02d%02d_%02d.csv", deviceId, now.month(), now.day(), now.year() - 2000, n);
   while (SD.exists(filename)) {
     n++;
-    snprintf(filename, sizeof(filename), "FEED%03d_%02d%02d%02d_%02d.csv", deviceId, now.month(), now.day(), now.year() - 2000, n);
+    snprintf(filename, sizeof(filename), "TUMBLY%03d_%02d%02d%02d_%02d.csv", deviceId, now.month(), now.day(), now.year() - 2000, n);
   }
 
   SdFile::dateTimeCallback(_dateTimeCallback);
@@ -201,9 +201,15 @@ void Tumbly::begin() {
   display.println("Ready!");
   display.setCursor(0, 10);
   display.print("Open: ");
-  display.print(openHour);
+  if (openHour < 10) display.print('0');
+  display.print(openHour); display.print(':');
+  if (openMinute < 10) display.print('0');
+  display.print(openMinute);
   display.print("-");
-  display.println(closeHour);
+  if (closeHour < 10) display.print('0');
+  display.print(closeHour); display.print(':');
+  if (closeMinute < 10) display.print('0');
+  display.println(closeMinute);
   display.setCursor(0, 20);
   display.print("File: ");
   display.println(filename);
@@ -212,12 +218,12 @@ void Tumbly::begin() {
   display.setCursor(0, 50);
   display.println("device from sleep");
   display.display();
-  delay(3000);
+  delay(1000);
 }
 
 void Tumbly::run() {
   lastFeedback = -1;
-  lastError    = "OK";
+  lastError    = _fatalActive ? "JAM" : "OK";
   _wakeCount++;
   ReadSensors();
   if (demoMode) {
@@ -275,10 +281,13 @@ void Tumbly::TimedDoor() {
 
   if (now.year() > 2020) {
     bool inOpenWindow;
-    if (openHour > closeHour) {
-      inOpenWindow = (now.hour() >= openHour || now.hour() < closeHour);
+    int nowMins   = now.hour()  * 60 + now.minute();
+    int openMins  = openHour   * 60 + openMinute;
+    int closeMins = closeHour  * 60 + closeMinute;
+    if (openMins > closeMins) {
+      inOpenWindow = (nowMins >= openMins || nowMins < closeMins);
     } else {
-      inOpenWindow = (now.hour() >= openHour && now.hour() < closeHour);
+      inOpenWindow = (nowMins >= openMins && nowMins < closeMins);
     }
     if (inOpenWindow) {
       if (doorOpen == false) open_door();
@@ -343,6 +352,31 @@ void Tumbly::close_door() {
 }
 
 void Tumbly::UpdateDisplay() {
+  if (_fatalActive) {
+    display.oled_command(SH110X_DISPLAYON);
+    readButtons();
+    if (_greenTouch) {
+      beep(); delay(300);
+      _fatalActive = false;
+      servoError   = false;
+      lastError    = "MANUAL_FIXED";
+      return;
+    }
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("!! SERVO ERROR !!");
+    display.setCursor(0, 12);
+    display.println("Could not correct");
+    display.println("position.");
+    display.setCursor(0, 32);
+    display.println("Check for jam.");
+    display.setCursor(0, 46);
+    display.println("B: Fixed! Resume");
+    display.display();
+    delay(1000);
+    return;
+  }
   if (darkMode && !_darkActive) return;
   display.clearDisplay();
   display.setTextSize(1);
@@ -406,6 +440,8 @@ void Tumbly::saveConfig() {
   cfg.println(taskIndex);
   cfg.println(openHour);
   cfg.println(closeHour);
+  cfg.println(openMinute);
+  cfg.println(closeMinute);
   cfg.println(openpos);
   cfg.println(closedpos);
   cfg.println(sleeptime);
@@ -419,9 +455,11 @@ bool Tumbly::loadConfig() {
   if (!cfg) return false;
   deviceId  = cfg.parseInt();
   taskIndex = cfg.parseInt();
-  openHour  = cfg.parseInt();
-  closeHour = cfg.parseInt();
-  openpos   = cfg.parseInt();
+  openHour    = cfg.parseInt();
+  closeHour   = cfg.parseInt();
+  openMinute  = cfg.parseInt();
+  closeMinute = cfg.parseInt();
+  openpos     = cfg.parseInt();
   closedpos = cfg.parseInt();
   sleeptime      = cfg.parseInt();
   feedbackOpen   = cfg.parseInt();
@@ -479,13 +517,15 @@ void Tumbly::error() {
 
 int Tumbly::readFeedback() {
   digitalWrite(11, HIGH);
-  delay(5);
-  int val = analogRead(SERVO_FEEDBACK);
+  delay(200);
+  long sum = 0;
+  for (int i = 0; i < 5; i++) { sum += analogRead(SERVO_FEEDBACK); delay(2); }
   digitalWrite(11, LOW);
-  return val;
+  return (int)(sum / 5);
 }
 
 void Tumbly::HourlyCheck() {
+  if (_fatalActive) return;
   if (feedbackOpen <= 0 || feedbackClosed <= 0) return;
 
   lastFeedback = readFeedback();
@@ -511,6 +551,7 @@ void Tumbly::HourlyCheck() {
   bool targetOpen = doorOpen;
 
   auto tryCorrect = [&]() {
+    lastFeedback = readFeedback();
     display.clearDisplay();
     display.setCursor(0, 0);
     display.println("Servo incorrect!");
@@ -533,14 +574,16 @@ void Tumbly::HourlyCheck() {
     for (; pos >= 0 && pos <= 180; pos += step) {
       myservo.write(pos);
       delay(40);
-      if (abs(analogRead(SERVO_FEEDBACK) - targetFB) <= feedbackTolerance) break;
+      long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
+      if (abs((int)(s / 5) - targetFB) <= feedbackTolerance) break;
     }
     if (pos < 0 || pos > 180) {
       pos = (step > 0) ? 0 : 180;
       for (; pos >= 0 && pos <= 180; pos += step) {
         myservo.write(pos);
         delay(40);
-        if (abs(analogRead(SERVO_FEEDBACK) - targetFB) <= feedbackTolerance) break;
+        long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
+        if (abs((int)(s / 5) - targetFB) <= feedbackTolerance) break;
       }
     }
     _lastPWM = constrain(pos, 0, 180);
@@ -628,32 +671,21 @@ void Tumbly::shakeServo() {
 }
 
 void Tumbly::FatalServoError() {
-  unsigned long waitEnd = millis() + 2000;
-  while (digitalRead(RED_BUTTON) == LOW && millis() < waitEnd) delay(50);
-  delay(200);
+  _fatalActive = true;
   display.oled_command(SH110X_DISPLAYON);
-  while (true) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.println("!! SERVO ERROR !!");
-    display.setCursor(0, 12);
-    display.println("Could not correct");
-    display.println("position.");
-    display.setCursor(0, 32);
-    display.println("Manual fix needed.");
-    display.setCursor(0, 46);
-    display.println("B: Fixed! Resume");
-    display.display();
-    readButtons();
-    if (_greenTouch) {
-      beep(); delay(300);
-      lastError  = "MANUAL_FIXED";
-      servoError = false;
-      return;
-    }
-    delay(100);
-  }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("!! SERVO ERROR !!");
+  display.setCursor(0, 12);
+  display.println("Could not correct");
+  display.println("position.");
+  display.setCursor(0, 32);
+  display.println("Check for jam.");
+  display.setCursor(0, 46);
+  display.println("B: Fixed! Resume");
+  display.display();
+  delay(2000);
 }
 
 void Tumbly::GoToSleep() {
@@ -710,13 +742,15 @@ void Tumbly::SettingsMenu() {
         display.setCursor(0, 18);
         display.print("Open:  ");
         if (openHour < 10) display.print('0');
-        display.print(openHour);
-        display.print(":00");
+        display.print(openHour); display.print(':');
+        if (openMinute < 10) display.print('0');
+        display.print(openMinute);
         display.setCursor(0, 27);
         display.print("Close: ");
         if (closeHour < 10) display.print('0');
-        display.print(closeHour);
-        display.print(":00");
+        display.print(closeHour); display.print(':');
+        if (closeMinute < 10) display.print('0');
+        display.print(closeMinute);
         display.setCursor(0, 36);
         display.print("Open position:");
         display.print(feedbackOpen  >= 0 ? String(feedbackOpen)  : "--");
@@ -807,6 +841,7 @@ void Tumbly::EditDeviceId() {
 
 void Tumbly::EditOpenHour() {
   _endstate = false;
+  int redHold = 0, greenHold = 0;
   while (!_endstate) {
     readButtons();
     display.clearDisplay();
@@ -816,11 +851,12 @@ void Tumbly::EditOpenHour() {
     display.setCursor(0, 10);
     display.setTextSize(2);
     if (openHour < 10) display.print('0');
-    display.print(openHour);
-    display.print(":00");
+    display.print(openHour); display.print(':');
+    if (openMinute < 10) display.print('0');
+    display.print(openMinute);
     display.setTextSize(1);
 
-    int ox = (openHour * 128) / 24;
+    int ox = ((openHour * 60 + openMinute) * 128) / 1440;
     display.setCursor(constrain(ox - 3, 0, 121), 28);
     display.print("v");
 
@@ -840,8 +876,20 @@ void Tumbly::EditOpenHour() {
     display.print("A:>  B:<   C:Set");
     display.display();
 
-    if (_redTouch) { beep(); openHour++; if (openHour > 23) openHour = 0; delay(200); }
-    if (_greenTouch) { beep(); openHour--; if (openHour < 0) openHour = 23; delay(200); }
+    if (_redTouch) {
+      if (redHold == 0) beep();
+      redHold++;
+      openMinute += 30;
+      if (openMinute >= 60) { openMinute = 0; openHour++; if (openHour > 23) openHour = 0; }
+      delay(redHold > 8 ? 80 : 250);
+    } else { redHold = 0; }
+    if (_greenTouch) {
+      if (greenHold == 0) beep();
+      greenHold++;
+      openMinute -= 30;
+      if (openMinute < 0) { openMinute = 30; openHour--; if (openHour < 0) openHour = 23; }
+      delay(greenHold > 8 ? 80 : 250);
+    } else { greenHold = 0; }
     if (_blueTouch) { beep(); delay(200); _endstate = true; EditCloseHour(); }
     delay(50);
   }
@@ -849,6 +897,7 @@ void Tumbly::EditOpenHour() {
 
 void Tumbly::EditCloseHour() {
   _endstate = false;
+  int redHold = 0, greenHold = 0;
   while (!_endstate) {
     readButtons();
     display.clearDisplay();
@@ -858,21 +907,24 @@ void Tumbly::EditCloseHour() {
     display.setCursor(0, 10);
     display.setTextSize(2);
     if (closeHour < 10) display.print('0');
-    display.print(closeHour);
-    display.print(":00");
+    display.print(closeHour); display.print(':');
+    if (closeMinute < 10) display.print('0');
+    display.print(closeMinute);
     display.setTextSize(1);
 
-    int ox = (openHour * 128) / 24;
-    int cx = (closeHour * 128) / 24;
+    int ox = ((openHour * 60 + openMinute) * 128) / 1440;
+    int cx = ((closeHour * 60 + closeMinute) * 128) / 1440;
 
     display.setCursor(constrain(cx - 3, 0, 121), 28);
     display.print("v");
 
     display.drawRect(0, 36, 128, 6, SH110X_WHITE);
 
-    if (openHour < closeHour) {
+    int openMins  = openHour  * 60 + openMinute;
+    int closeMins = closeHour * 60 + closeMinute;
+    if (openMins < closeMins) {
       display.fillRect(ox, 37, cx - ox, 4, SH110X_WHITE);
-    } else if (openHour > closeHour) {
+    } else if (openMins > closeMins) {
       display.fillRect(ox, 37, 128 - ox, 4, SH110X_WHITE);
       display.fillRect(0, 37, cx, 4, SH110X_WHITE);
     }
@@ -893,14 +945,29 @@ void Tumbly::EditCloseHour() {
     display.print("A:>  B:<   C:Set");
     display.display();
 
-    if (_redTouch) { beep(); closeHour++; if (closeHour > 23) closeHour = 0; delay(200); }
-    if (_greenTouch) { beep(); closeHour--; if (closeHour < 0) closeHour = 23; delay(200); }
+    if (_redTouch) {
+      if (redHold == 0) beep();
+      redHold++;
+      closeMinute += 30;
+      if (closeMinute >= 60) { closeMinute = 0; closeHour++; if (closeHour > 23) closeHour = 0; }
+      delay(redHold > 8 ? 80 : 250);
+    } else { redHold = 0; }
+    if (_greenTouch) {
+      if (greenHold == 0) beep();
+      greenHold++;
+      closeMinute -= 30;
+      if (closeMinute < 0) { closeMinute = 30; closeHour--; if (closeHour < 0) closeHour = 23; }
+      delay(greenHold > 8 ? 80 : 250);
+    } else { greenHold = 0; }
     if (_blueTouch) { beep(); delay(200); _endstate = true; EditOpenPosition(); }
     delay(50);
   }
 }
 
 void Tumbly::EditOpenPosition() {
+  digitalWrite(11, HIGH);
+  delay(50);
+
   display.clearDisplay();
   display.setCursor(0, 0);
   display.println("== OPEN Position ==");
@@ -917,8 +984,8 @@ void Tumbly::EditOpenPosition() {
     readButtons();
     if (_blueTouch) {
       beep(); delay(200);
-      digitalWrite(11, HIGH); delay(10);
-      feedbackOpen = analogRead(SERVO_FEEDBACK);
+      long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
+      feedbackOpen = (int)(s / 5);
       digitalWrite(11, LOW);
       display.clearDisplay();
       display.setCursor(0, 0);
@@ -936,6 +1003,9 @@ void Tumbly::EditOpenPosition() {
 }
 
 void Tumbly::EditClosedPosition() {
+  digitalWrite(11, HIGH);
+  delay(50);
+
   display.clearDisplay();
   display.setCursor(0, 0);
   display.println("== CLOSED Position =");
@@ -952,8 +1022,8 @@ void Tumbly::EditClosedPosition() {
     readButtons();
     if (_blueTouch) {
       beep(); delay(200);
-      digitalWrite(11, HIGH); delay(10);
-      feedbackClosed = analogRead(SERVO_FEEDBACK);
+      long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
+      feedbackClosed = (int)(s / 5);
       digitalWrite(11, LOW);
       _endstate = true;
       saveConfig();
@@ -969,13 +1039,15 @@ void Tumbly::EditClosedPosition() {
       display.setCursor(0, 34);
       display.print("Opens: ");
       if (openHour < 10) display.print('0');
-      display.print(openHour);
-      display.print(":00");
+      display.print(openHour); display.print(':');
+      if (openMinute < 10) display.print('0');
+      display.print(openMinute);
       display.setCursor(0, 44);
       display.print("Closes: ");
       if (closeHour < 10) display.print('0');
-      display.print(closeHour);
-      display.print(":00");
+      display.print(closeHour); display.print(':');
+      if (closeMinute < 10) display.print('0');
+      display.print(closeMinute);
       display.display();
       delay(3000);
     }
