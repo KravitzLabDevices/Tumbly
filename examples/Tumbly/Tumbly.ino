@@ -3,10 +3,10 @@
 // Set task to one of the following (can also be changed in the settings menu on device):
 //
 //   "TimedDoor"   — opens the hopper at openHour and closes it at closeHour.
-//                   Servo position is verified every 5 minutes and corrected if needed.
+//                   Servo position is verified every 30 minutes and corrected if needed.
 //
 //   "FreeFeeding" — door stays open at all times.
-//                   Servo position is still verified every 5 minutes.
+//                   Servo position is still verified every 30 minutes.
 //
 //   "Demo"        — fast validation loop for hardware testing. Wakes every 5 seconds,
 //                   checks position every 10 seconds, alternates open/closed so you

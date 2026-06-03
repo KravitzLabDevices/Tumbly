@@ -51,7 +51,7 @@ public:
   bool  doorOpen     = true;
   char  filename[30];
   float measuredvbat = 0;
-  int   sleeptime    = 10;
+  int   sleeptime    = 30;
   int   openpos      = 0;
   int   closedpos    = 0;
   int   openHour        = 20;

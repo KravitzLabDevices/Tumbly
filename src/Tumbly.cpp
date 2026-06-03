@@ -89,11 +89,11 @@ static void _animPlay(Adafruit_SH1107& d) {
   canvas.print("TUMBLY");
   delay(100);
 
-  _animFrame(d,canvas,128,-50,128); delay(300);
-  _animFrame(d,canvas, 95,-50,128); delay(350);
-  _animFrame(d,canvas, 75,-50,128); delay(350);
-  _animFrame(d,canvas, 62,-50,128); delay(350);
-  _animFrame(d,canvas, 50,-50,128); delay(300);
+  _animFrame(d,canvas,128,-50,128); delay(200);
+  _animFrame(d,canvas, 95,-50,128); delay(250);
+  _animFrame(d,canvas, 75,-50,128); delay(250);
+  _animFrame(d,canvas, 62,-50,128); delay(250);
+  _animFrame(d,canvas, 50,-50,128); delay(200);
 
   _animFrame(d,canvas,50,-50, 50); delay(115);
   _animFrame(d,canvas,50,-41, 25); delay(100);
@@ -106,7 +106,7 @@ static void _animPlay(Adafruit_SH1107& d) {
   _animFrame(d,canvas,50, 14,  0); delay(65);  // bounce
   _animFrame(d,canvas,50, 21,  0); delay(55);
   _animFrame(d,canvas,50, 17,  0); delay(50);
-  _animFrame(d,canvas,50, 21,  0); delay(800); // hold
+  _animFrame(d,canvas,50, 21,  0); delay(100); // hold
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -175,6 +175,9 @@ void Tumbly::begin() {
   }
   if (task == "Demo") demoMode = true;
   if (demoMode) sleeptime = 5;
+
+  myservo.attach(10, 500, 2500);
+  myservo.write(_lastPWM);
 
   int n = 0;
   DateTime now = rtc.now();
@@ -247,7 +250,7 @@ void Tumbly::run() {
     } else if (taskIndex == 1) {
       if (!doorOpen) open_door();
     }
-    if (_wakeCount >= (300 / max(sleeptime, 1))) {
+    if (_wakeCount >= (1800 / max(sleeptime, 1))) {
       _wakeCount = 0;
       HourlyCheck();
     }
@@ -300,7 +303,6 @@ void Tumbly::TimedDoor() {
 void Tumbly::open_door() {
   if (feedbackOpen <= 0) return;
   digitalWrite(11, HIGH);
-  myservo.attach(10, 500, 2500);
   delay(50);
   int step = (feedbackOpen > feedbackClosed) ? 1 : -1;
   int pos = _lastPWM;
@@ -319,7 +321,6 @@ void Tumbly::open_door() {
   }
   _lastPWM = constrain(pos, 0, 180);
   _openPWM = _lastPWM;
-  myservo.detach();
   digitalWrite(11, LOW);
   doorOpen = true;
 }
@@ -327,7 +328,6 @@ void Tumbly::open_door() {
 void Tumbly::close_door() {
   if (feedbackClosed <= 0) return;
   digitalWrite(11, HIGH);
-  myservo.attach(10, 500, 2500);
   delay(50);
   int step = (feedbackClosed > feedbackOpen) ? 1 : -1;
   int pos = _lastPWM;
@@ -346,7 +346,6 @@ void Tumbly::close_door() {
   }
   _lastPWM = constrain(pos, 0, 180);
   _closedPWM = _lastPWM;
-  myservo.detach();
   digitalWrite(11, LOW);
   doorOpen = false;
 }
@@ -568,7 +567,6 @@ void Tumbly::HourlyCheck() {
       0, 180);
 
     digitalWrite(11, HIGH);
-    myservo.attach(10, 500, 2500);
     delay(50);
     int pos = startPWM;
     for (; pos >= 0 && pos <= 180; pos += step) {
@@ -589,7 +587,6 @@ void Tumbly::HourlyCheck() {
     _lastPWM = constrain(pos, 0, 180);
     if (targetOpen) _openPWM  = _lastPWM;
     else            _closedPWM = _lastPWM;
-    myservo.detach();
     digitalWrite(11, LOW);
     doorOpen = targetOpen;
     lastFeedback = readFeedback();
@@ -654,7 +651,6 @@ void Tumbly::shakeServo() {
     0, 180);
 
   digitalWrite(11, HIGH);
-  myservo.attach(10, 500, 2500);
   delay(50);
 
   unsigned long shakeEnd = millis() + 3000;
@@ -666,7 +662,6 @@ void Tumbly::shakeServo() {
   }
   myservo.write(center);
   delay(200);
-  myservo.detach();
   digitalWrite(11, LOW);
 }
 
@@ -965,18 +960,23 @@ void Tumbly::EditCloseHour() {
 }
 
 void Tumbly::EditOpenPosition() {
+  myservo.detach();
   digitalWrite(11, HIGH);
   delay(50);
 
   display.clearDisplay();
   display.setCursor(0, 0);
   display.println("== OPEN Position ==");
-  display.setCursor(0, 14);
+  display.setCursor(0, 12);
   display.println("Move hopper to the");
   display.println("OPEN position");
   display.println("by hand.");
-  display.setCursor(0, 44);
-  display.println("Hold it, press C.");
+  display.setCursor(0, 46);
+  display.println("C: Lock position");
+  if (feedbackOpen > 0) {
+    display.setCursor(0, 56);
+    display.println("A: Use saved pos");
+  }
   display.display();
 
   _endstate = false;
@@ -986,10 +986,22 @@ void Tumbly::EditOpenPosition() {
       beep(); delay(200);
       long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
       feedbackOpen = (int)(s / 5);
-      digitalWrite(11, LOW);
       display.clearDisplay();
       display.setCursor(0, 0);
       display.println("Open pos locked!");
+      display.setCursor(0, 18);
+      display.print("Value: ");
+      display.println(feedbackOpen);
+      display.display();
+      delay(1500);
+      _endstate = true;
+      EditClosedPosition();
+    }
+    if (_redTouch && feedbackOpen > 0) {
+      beep(); delay(200);
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.println("Using saved open!");
       display.setCursor(0, 18);
       display.print("Value: ");
       display.println(feedbackOpen);
@@ -1003,28 +1015,47 @@ void Tumbly::EditOpenPosition() {
 }
 
 void Tumbly::EditClosedPosition() {
-  digitalWrite(11, HIGH);
-  delay(50);
-
   display.clearDisplay();
   display.setCursor(0, 0);
   display.println("== CLOSED Position =");
-  display.setCursor(0, 14);
+  display.setCursor(0, 12);
   display.println("Move hopper to the");
   display.println("CLOSED position");
   display.println("by hand.");
-  display.setCursor(0, 44);
-  display.println("Hold it, press C.");
+  display.setCursor(0, 46);
+  display.println("C: Lock position");
+  if (feedbackClosed > 0) {
+    display.setCursor(0, 56);
+    display.println("A: Use saved pos");
+  }
   display.display();
 
   _endstate = false;
   while (!_endstate) {
     readButtons();
+    if (_redTouch && feedbackClosed > 0) {
+      beep(); delay(200);
+      digitalWrite(11, LOW);
+      myservo.attach(10, 500, 2500);
+      myservo.write(_lastPWM);
+      _endstate = true;
+      saveConfig();
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.println("Using saved closed!");
+      display.setCursor(0, 18);
+      display.print("Value: ");
+      display.println(feedbackClosed);
+      display.display();
+      delay(1500);
+    }
     if (_blueTouch) {
       beep(); delay(200);
       long s = 0; for (int r = 0; r < 5; r++) { s += analogRead(SERVO_FEEDBACK); delay(2); }
       feedbackClosed = (int)(s / 5);
       digitalWrite(11, LOW);
+      myservo.attach(10, 500, 2500);
+      myservo.write(_lastPWM);
       _endstate = true;
       saveConfig();
       display.clearDisplay();
