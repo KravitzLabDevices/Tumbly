@@ -1,5 +1,5 @@
 /********************************************************
-  Tumbly - Tumble Feeder Library
+  Tumbly - Library
   Copyright (c) 2024 Lex Kravitz, Mason Barrett
   Released under GPL-3.0
  ********************************************************/
@@ -7,8 +7,14 @@
 #include "Tumbly.h"
 #include <math.h>
 
-// ── Startup animation (file-scope, not part of class API) ─────────────────
+/*==============================================================================
+  STARTUP ANIMATION
+  File-scope drawing helpers for the boot animation (a mouse tipping a "TUMBLY"
+  block into a cage of food). Not part of the class API. Coordinates assume the
+  128x64 landscape orientation set up in begin().
+==============================================================================*/
 
+// Scatter of food pellets piled in the bottom-left corner.
 static void _animFood(Adafruit_SH1107& d) {
   d.fillCircle( 7,62,3,SH110X_WHITE); d.fillCircle(16,63,3,SH110X_WHITE);
   d.fillCircle(25,61,3,SH110X_WHITE); d.fillCircle(34,63,3,SH110X_WHITE);
@@ -20,6 +26,7 @@ static void _animFood(Adafruit_SH1107& d) {
   d.fillCircle(24,35,2,SH110X_WHITE);
 }
 
+// Cage bars; cellY slides the cage in vertically during the animation.
 static void _animCell(Adafruit_SH1107& d, int cellY) {
   int boxTop    = max(cellY, 0);
   int boxBottom = min(cellY + 43, 63);
@@ -34,6 +41,7 @@ static void _animCell(Adafruit_SH1107& d, int cellY) {
   }
 }
 
+// The mouse; ox shifts it horizontally so it can walk in from the right.
 static void _animMouse(Adafruit_SH1107& d, int ox) {
   // Body — scanline horizontal ellipse
   { const int ecx=95+ox, ecy=60, ra=17, rb=9;
@@ -60,6 +68,8 @@ static void _animMouse(Adafruit_SH1107& d, int ox) {
   }
 }
 
+// The "TUMBLY" text block rendered from a 1-bit canvas; startX slides it in and
+// a small per-row lean gives it a tipping look.
 static void _animTumbly(Adafruit_SH1107& d, GFXcanvas1& canvas, int startX) {
   if (startX >= 128) return;
   for (int cy=0; cy<20; cy++) {
@@ -76,12 +86,14 @@ static void _animTumbly(Adafruit_SH1107& d, GFXcanvas1& canvas, int startX) {
   d.drawFastHLine(ls, 20, 128-ls, SH110X_WHITE);
 }
 
+// Compose one full frame from the four elements and push it to the panel.
 static void _animFrame(Adafruit_SH1107& d, GFXcanvas1& canvas, int tx, int cy, int mx) {
   d.clearDisplay();
   _animFood(d); _animCell(d,cy); _animMouse(d,mx); _animTumbly(d,canvas,tx);
   d.display();
 }
 
+// Play the whole sequence: block slides in, mouse tips it, it falls and bounces.
 static void _animPlay(Adafruit_SH1107& d) {
   GFXcanvas1 canvas(96, 20);
   canvas.fillScreen(0); canvas.setTextSize(2);
@@ -109,20 +121,37 @@ static void _animPlay(Adafruit_SH1107& d) {
   _animFrame(d,canvas,50, 21,  0); delay(100); // hold
 }
 
-// ──────────────────────────────────────────────────────────────────────────
+/*==============================================================================
+  STATIC STATE & CALLBACKS
+  A single active instance pointer lets the C-style RTC/wake callbacks reach the
+  object. _wokenByButton is set from the sleep wake interrupt.
+==============================================================================*/
 
 static Tumbly* _instance = nullptr;
 static bool _wokenByButton = false;
+
+// Sleep wake-on-button interrupt handler.
 static void wakeupCallback() { _wokenByButton = true; }
 
+// SdFat calls this to stamp files with the current RTC time.
 static void _dateTimeCallback(uint16_t* date, uint16_t* time) {
   DateTime now = _instance->rtc.now();
   *date = FAT_DATE(now.year(), now.month(), now.day());
   *time = FAT_TIME(now.hour(), now.minute(), now.second());
 }
 
+/*==============================================================================
+  CONSTRUCTOR
+==============================================================================*/
+
 Tumbly::Tumbly(String& task, bool darkMode) : display(SCREEN_HEIGHT, SCREEN_WIDTH, &Wire), task(task), darkMode(darkMode) {}
 
+/*==============================================================================
+  LIFECYCLE
+==============================================================================*/
+
+// One-time startup: display + animation, RTC, SD, config load, servo attach,
+// log-file creation, settings menu, and an open/close self-test.
 void Tumbly::begin() {
   _instance = this;
 
@@ -153,6 +182,7 @@ void Tumbly::begin() {
 
   rtc.begin();
 
+  // Block until an SD card is present; logging/config require it.
   while (!SD.begin(_chipSelect, SD_SCK_MHZ(4))) {
     Serial.println("No SD card found");
     display.clearDisplay();
@@ -176,9 +206,11 @@ void Tumbly::begin() {
   if (task == "Demo") demoMode = true;
   if (demoMode) sleeptime = 5;
 
+  // Attach the servo once and hold it; re-attaching mid-run causes a jolt.
   myservo.attach(10, 500, 2500);
   myservo.write(_lastPWM);
 
+  // Pick a unique log filename for today (append an index if one exists).
   int n = 0;
   DateTime now = rtc.now();
   snprintf(filename, sizeof(filename), "TUMBLY%03d_%02d%02d%02d_%02d.csv", deviceId, now.month(), now.day(), now.year() - 2000, n);
@@ -195,6 +227,7 @@ void Tumbly::begin() {
 
   SettingsMenu();
 
+  // Self-test: prove the door can reach both calibrated positions.
   open_door();
   delay(1000);
   close_door();
@@ -224,12 +257,15 @@ void Tumbly::begin() {
   delay(1000);
 }
 
+// One wake cycle: read sensors, run the active task's door logic, run the
+// periodic position check on cadence, log, update the display, and sleep.
 void Tumbly::run() {
   lastFeedback = -1;
   lastError    = _fatalActive ? "JAM" : "OK";
   _wakeCount++;
   ReadSensors();
   if (demoMode) {
+    // Demo: toggle open/closed every few cycles so the mechanism can be watched.
     _demoPhaseCount++;
     if (_demoPhaseCount > 5) {
       _demoPhaseCount = 1;
@@ -248,8 +284,9 @@ void Tumbly::run() {
     if (taskIndex == 0) {
       TimedDoor();
     } else if (taskIndex == 1) {
-      if (!doorOpen) open_door();
+      if (!doorOpen) open_door();  // FreeFeeding: keep the door open
     }
+    // Position check every ~30 min (1800 s / sleeptime wakes).
     if (_wakeCount >= (1800 / max(sleeptime, 1))) {
       _wakeCount = 0;
       HourlyCheck();
@@ -260,6 +297,11 @@ void Tumbly::run() {
   GoToSleep();
 }
 
+/*==============================================================================
+  SENSORS
+==============================================================================*/
+
+// Read ambient light (A3) and battery voltage (A7, via 2:1 divider).
 void Tumbly::ReadSensors() {
   lux = analogRead(A3);
   Serial.print("Light: ");
@@ -271,11 +313,19 @@ void Tumbly::ReadSensors() {
   measuredvbat /= 1024;
 }
 
+/*==============================================================================
+  DOOR CONTROL
+==============================================================================*/
+
+// Open/close by ambient light level (alternative to TimedDoor; not used by the
+// default tasks but available).
 void Tumbly::LightControlledDoor() {
   if (lux > 5 && doorOpen == false) open_door();
   else if (lux < 6 && doorOpen == true) close_door();
 }
 
+// Task 0: open during the configured window, closed outside it. Handles windows
+// that wrap past midnight (openMins > closeMins).
 void Tumbly::TimedDoor() {
   rtc.begin();
   DateTime now = rtc.now();
@@ -300,6 +350,9 @@ void Tumbly::TimedDoor() {
   }
 }
 
+// Sweep the servo from its last angle toward the OPEN feedback target, stopping
+// when the reading lands within tolerance. If the first sweep runs off the end
+// of travel, restart from the opposite extreme.
 void Tumbly::open_door() {
   if (feedbackOpen <= 0) return;
   digitalWrite(11, HIGH);
@@ -325,6 +378,7 @@ void Tumbly::open_door() {
   doorOpen = true;
 }
 
+// Same as open_door() but toward the CLOSED feedback target.
 void Tumbly::close_door() {
   if (feedbackClosed <= 0) return;
   digitalWrite(11, HIGH);
@@ -350,6 +404,13 @@ void Tumbly::close_door() {
   doorOpen = false;
 }
 
+/*==============================================================================
+  DISPLAY
+==============================================================================*/
+
+// Draw the status screen. Also handles the two special modes: the latched
+// FATAL servo-error screen (B resumes) and dark mode (skip drawing unless the
+// display was manually woken).
 void Tumbly::UpdateDisplay() {
   if (_fatalActive) {
     display.oled_command(SH110X_DISPLAYON);
@@ -425,12 +486,19 @@ void Tumbly::UpdateDisplay() {
   delay(1000);
 }
 
+/*==============================================================================
+  SD: LOGGING & CONFIG
+==============================================================================*/
+
+// Write the CSV column header for a fresh log file.
 void Tumbly::writeHeader() {
   logfile = SD.open(filename, FILE_WRITE);
   logfile.println("Datetime,Device_Number,Task,Battery_Voltage,Light Sensor,DoorOpen,Servo_Feedback,Error");
   logfile.close();
 }
 
+// Persist user settings to config.txt (one value per line, order must match
+// loadConfig()).
 void Tumbly::saveConfig() {
   SD.remove("config.txt");
   File cfg = SD.open("config.txt", FILE_WRITE);
@@ -449,6 +517,8 @@ void Tumbly::saveConfig() {
   cfg.close();
 }
 
+// Load settings from config.txt (same field order as saveConfig()). Returns
+// false if the file is missing.
 bool Tumbly::loadConfig() {
   File cfg = SD.open("config.txt", FILE_READ);
   if (!cfg) return false;
@@ -469,6 +539,8 @@ bool Tumbly::loadConfig() {
   return true;
 }
 
+// Append one CSV data row. Re-runs SD.begin() so a removed card is detected and
+// flagged via sdPresent. Pin 8 pulses an activity LED during the write.
 void Tumbly::LogData() {
   if (!SD.begin(_chipSelect, SD_SCK_MHZ(4))) {
     Serial.println("Card failed, or not present");
@@ -509,11 +581,18 @@ void Tumbly::LogData() {
   if (!darkMode || _darkActive) digitalWrite(8, LOW);
 }
 
+// Light the error LEDs (called on a failed log write).
 void Tumbly::error() {
   digitalWrite(13, HIGH);
   digitalWrite(8, HIGH);
 }
 
+/*==============================================================================
+  SERVO FEEDBACK & POSITION CHECK
+==============================================================================*/
+
+// Read the servo position pot. Powers the feedback circuit (pin 11), waits for
+// the ADC to settle, and averages a few samples for a stable reading.
 int Tumbly::readFeedback() {
   digitalWrite(11, HIGH);
   delay(200);
@@ -523,6 +602,9 @@ int Tumbly::readFeedback() {
   return (int)(sum / 5);
 }
 
+// Periodic self-check: verify the door is where it should be. If not, try to
+// correct up to three times (with a shake between attempts). If it still can't
+// reach the target, latch a FATAL servo error.
 void Tumbly::HourlyCheck() {
   if (_fatalActive) return;
   if (feedbackOpen <= 0 || feedbackClosed <= 0) return;
@@ -549,6 +631,8 @@ void Tumbly::HourlyCheck() {
   servoError = true;
   bool targetOpen = doorOpen;
 
+  // Re-drive the servo toward the target, sweeping from an estimate of the
+  // current position. Updates lastFeedback with the post-correction reading.
   auto tryCorrect = [&]() {
     lastFeedback = readFeedback();
     display.clearDisplay();
@@ -643,6 +727,8 @@ void Tumbly::HourlyCheck() {
   FatalServoError();
 }
 
+// Rapidly wiggle the servo around its estimated current position to free a
+// stuck hopper. Does not try to move to a new spot first (it may be jammed).
 void Tumbly::shakeServo() {
   // Shake in place — estimate current PWM from last feedback so we don't
   // try to move first (servo may be jammed at the wrong position)
@@ -665,6 +751,8 @@ void Tumbly::shakeServo() {
   digitalWrite(11, LOW);
 }
 
+// Latch the fatal servo-error state and show the error screen. Cleared only by
+// pressing B (handled in UpdateDisplay).
 void Tumbly::FatalServoError() {
   _fatalActive = true;
   display.oled_command(SH110X_DISPLAYON);
@@ -683,6 +771,12 @@ void Tumbly::FatalServoError() {
   delay(2000);
 }
 
+/*==============================================================================
+  SLEEP
+==============================================================================*/
+
+// Low-power sleep until the next cycle, waking early if button A is pressed.
+// In dark mode the display/LED stay off unless woken by the button.
 void Tumbly::GoToSleep() {
   Serial.print("Sleeping...");
   digitalWrite(LED_BUILTIN, LOW);
@@ -700,18 +794,32 @@ void Tumbly::GoToSleep() {
   if (_wokenByButton) delay(10000);
 }
 
+/*==============================================================================
+  BUTTONS
+==============================================================================*/
+
+// Refresh the three debounced button flags (active LOW).
 void Tumbly::readButtons() {
   _redTouch   = (digitalRead(RED_BUTTON) == LOW);
   _greenTouch = (digitalRead(GREEN_BUTTON) == LOW);
   _blueTouch  = (digitalRead(BLUE_BUTTON) == LOW);
 }
 
+// Short LED blink used as button-press feedback.
 void Tumbly::beep() {
   digitalWrite(LED_BUILTIN, HIGH);
   delay(50);
   digitalWrite(LED_BUILTIN, LOW);
 }
 
+/*==============================================================================
+  SETTINGS MENU & CALIBRATION
+  Button convention throughout these screens: A = change/increment,
+  B = decrement, C = select/confirm/next. The Edit* screens chain into each
+  other and set _endstate to unwind back to SettingsMenu.
+==============================================================================*/
+
+// Top-level menu: shows current settings; A starts the run, C enters editing.
 void Tumbly::SettingsMenu() {
   bool needsRedraw = true;
   while (true) {
@@ -771,6 +879,7 @@ void Tumbly::SettingsMenu() {
   }
 }
 
+// Choose the task (A cycles the selection, C confirms and advances to device ID).
 void Tumbly::EditTask() {
   const char* tasks[] = {"TimedDoor", "FreeFeeding", "Demo"};
   const int numTasks = 3;
@@ -806,6 +915,8 @@ void Tumbly::EditTask() {
   }
 }
 
+// Set the device ID (A up, B down). C advances to time editing (TimedDoor) or
+// straight to position calibration for the other tasks.
 void Tumbly::EditDeviceId() {
   _endstate = false;
   while (!_endstate) {
@@ -834,6 +945,8 @@ void Tumbly::EditDeviceId() {
   }
 }
 
+// Set the open time on a 24h timeline (30-min steps; hold to repeat faster).
+// C advances to the close time.
 void Tumbly::EditOpenHour() {
   _endstate = false;
   int redHold = 0, greenHold = 0;
@@ -890,6 +1003,8 @@ void Tumbly::EditOpenHour() {
   }
 }
 
+// Set the close time; also draws the resulting open window as a bar (handling
+// windows that wrap past midnight). C advances to open-position calibration.
 void Tumbly::EditCloseHour() {
   _endstate = false;
   int redHold = 0, greenHold = 0;
@@ -959,6 +1074,8 @@ void Tumbly::EditCloseHour() {
   }
 }
 
+// Calibrate the OPEN position. Detaches the servo so the hopper can be moved by
+// hand; C captures the current feedback reading, or A reuses the saved value.
 void Tumbly::EditOpenPosition() {
   myservo.detach();
   digitalWrite(11, HIGH);
@@ -1014,6 +1131,9 @@ void Tumbly::EditOpenPosition() {
   }
 }
 
+// Calibrate the CLOSED position (servo power stays on from EditOpenPosition).
+// C captures the reading or A reuses the saved value; either path re-attaches
+// the servo, saves the config, and shows a summary.
 void Tumbly::EditClosedPosition() {
   display.clearDisplay();
   display.setCursor(0, 0);
