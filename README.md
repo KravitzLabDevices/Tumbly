@@ -1,5 +1,5 @@
 # Tumbly
-
+![Tumbly timelapse](extras/timelapse_masked.gif)
 An Arduino library for a tumble feeder optimized for time-restricted feeding. 
 
 **Hardware:** Adafruit Feather M0, OLED FeatherWing (SH1107), RTC FeatherWing, SD card, Servo  
