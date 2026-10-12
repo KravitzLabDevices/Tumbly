@@ -15,6 +15,10 @@
 // Set darkMode to true to suppress all screen and LED output after the task starts.
 // Press button A at any time to wake the display for one cycle.
 // Set darkMode to false to leave screen and LED behavior unchanged.
+//
+// Low battery: if the battery drops below 3.5V, Tumbly logs a final LOW_BATTERY
+// row, stops everything (servo, screen, logging), and blinks the red onboard LED
+// every 2 seconds. Recharge and press reset to resume.
 
 String task = "TimedDoor";
 bool darkMode = false;

@@ -40,6 +40,11 @@
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 64
 
+// Below this battery voltage the device shuts everything down and only blinks
+// the red onboard LED every 2 s until it is recharged and reset.
+#define LOW_BATTERY_VOLTS    3.5f
+#define LOW_BATTERY_BLINK_MS 2000
+
 class Tumbly {
 public:
   /*----------------------------------------------------------------------------
@@ -61,6 +66,7 @@ public:
   void LogData();              // append one CSV row to the SD log
   void UpdateDisplay();        // draw the status screen
   void GoToSleep();            // low-power sleep until next cycle / button wake
+  void LowBatteryShutdown();   // stop everything; blink red LED forever (never returns)
   void open_door();            // drive servo to the OPEN feedback target
   void close_door();           // drive servo to the CLOSED feedback target
 

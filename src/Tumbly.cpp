@@ -264,6 +264,7 @@ void Tumbly::run() {
   lastError    = _fatalActive ? "JAM" : "OK";
   _wakeCount++;
   ReadSensors();
+  if (measuredvbat < LOW_BATTERY_VOLTS) LowBatteryShutdown();  // never returns
   if (demoMode) {
     // Demo: toggle open/closed every few cycles so the mechanism can be watched.
     _demoPhaseCount++;
@@ -301,13 +302,16 @@ void Tumbly::run() {
   SENSORS
 ==============================================================================*/
 
-// Read ambient light (A3) and battery voltage (A7, via 2:1 divider).
+// Read ambient light (A3) and battery voltage (A7, via 2:1 divider). The battery
+// reading is averaged so one noisy sample can't trigger the low-battery shutdown.
 void Tumbly::ReadSensors() {
   lux = analogRead(A3);
   Serial.print("Light: ");
   Serial.println(lux);
   analogReadResolution(10);
-  measuredvbat = analogRead(A7);
+  long vsum = 0;
+  for (int i = 0; i < 8; i++) { vsum += analogRead(A7); delay(2); }
+  measuredvbat = vsum / 8.0f;
   measuredvbat *= 2;
   measuredvbat *= 3.3;
   measuredvbat /= 1024;
@@ -792,6 +796,33 @@ void Tumbly::GoToSleep() {
     digitalWrite(LED_BUILTIN, HIGH);
   }
   if (_wokenByButton) delay(10000);
+}
+
+// Battery below LOW_BATTERY_VOLTS: log one final row, then shut down the display,
+// servo, and status LEDs and sit in low-power sleep, waking every 2 s only to
+// blink the red onboard LED (pin 13). Ignores dark mode. Requires a reset (after
+// recharging) to resume normal operation.
+void Tumbly::LowBatteryShutdown() {
+  Serial.print("Low battery: ");
+  Serial.print(measuredvbat, 2);
+  Serial.println("V - shutting down");
+  lastError = "LOW_BATTERY";
+  LogData();
+
+  display.clearDisplay();
+  display.display();
+  display.oled_command(SH110X_DISPLAYOFF);
+  myservo.detach();
+  digitalWrite(11, LOW);
+  digitalWrite(8, LOW);
+  digitalWrite(LED_BUILTIN, LOW);
+
+  while (true) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    digitalWrite(LED_BUILTIN, LOW);
+    LowPower.sleep(LOW_BATTERY_BLINK_MS);
+  }
 }
 
 /*==============================================================================
